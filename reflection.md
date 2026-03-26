@@ -6,11 +6,31 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+- Core Actions For User: Add a pet, add/edit tasks, generate today's schedule
+- Main Objects Needed: Owner (name, and the pets they own, actions include adding pet, removing pet, adding/removing tasks, see today's tasks/schedule), Pet (name, age, etc, actions include changing basic info ), Task (type of task, duration, prioirity , actions include changing basic info ), Scheduler ( info includes the tasks, actions include generating schedule)
+
 
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+- Yes using AI, I improved my logic and cleaned it up. For example I put tasks under Pet:
+  Owner
+    fields:   name, pets[], available_hours (start/end time), preferences (dict or simple flags)
+    actions:  add_pet, remove_pet, add_task(pet, task), remove_task(pet, task), get_todays_tasks()
+
+  Pet
+    fields:   name, age, species (or type), tasks[]
+    actions:  update_info, add_task, remove_task
+
+  Task
+    fields:   task_type, duration (minutes), priority (1-5 or low/med/high), time_window (earliest, latest)
+    actions:  update
+
+  Scheduler
+    fields:   owner
+    actions:  generate_schedule() → list of (task, pet, start_time, reason)
+              — uses owner.available_hours + task priorities + time_windows to slot tasks
 
 ---
 
