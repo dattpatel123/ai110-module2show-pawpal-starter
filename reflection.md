@@ -14,7 +14,7 @@
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
-- Yes using AI, I improved my logic and cleaned it up. For example I put tasks under Pet:
+- Yes using AI, I improved my logic and cleaned it up. For example, I put pets under owner, gave availible hours, and preferences for owner. For tasks, I added a time_window which tells the window to schedule tasks. And scheduler now just takes Owner itself and generates schedule using Owner object which has all info. This all simplfies the program and makes it easier to understand naturally:
   Owner
     fields:   name, pets[], available_hours (start/end time), preferences (dict or simple flags)
     actions:  add_pet, remove_pet, add_task(pet, task), remove_task(pet, task), get_todays_tasks()
