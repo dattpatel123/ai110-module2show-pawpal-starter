@@ -29,7 +29,7 @@ class Pet:
     age: int
     species: str
     tasks: list[Task] = field(default_factory=list)
-    
+
     def update_info(self, name: str = None, age: int = None, species: str = None) -> None:
         """Update any combination of basic pet info."""
         if name is not None:
@@ -49,16 +49,11 @@ class Pet:
             raise ValueError(f"Task '{task.task_type}' not found for {self.name}")
         self.tasks.remove(task)
 
-    def __str__(self) -> str:
-        return f"{self.name} ({self.species}, age {self.age}) — {len(self.tasks)} task(s)"
-
-
 class Owner:
-    def __init__(self, name: str, available_start: time, available_end: time, preferences: dict = None):
+    def __init__(self, name: str, preferences: dict = None):
         self.name = name
         self.pets: list[Pet] = []
-        self.available_start = available_start
-        self.available_end = available_end
+        
         # Supported keys: "max_consecutive_minutes" (int)
         self.preferences: dict = preferences or {}
 
@@ -90,18 +85,7 @@ class Owner:
         """Return all (pet, task) pairs across every registered pet."""
         return [(pet, task) for pet in self.pets for task in pet.tasks]
 
-    def available_minutes(self) -> int:
-        """Total minutes between available_start and available_end."""
-        start = datetime.combine(datetime.today(), self.available_start)
-        end = datetime.combine(datetime.today(), self.available_end)
-        return int((end - start).total_seconds() // 60)
-
-    def __str__(self) -> str:
-        return (
-            f"Owner: {self.name} | "
-            f"Available: {self.available_start.strftime('%H:%M')}–{self.available_end.strftime('%H:%M')} | "
-            f"Pets: {len(self.pets)}"
-        )
+   
 
 
 class Scheduler:
@@ -112,22 +96,103 @@ class Scheduler:
         """
         Build a daily schedule for the owner's pets.
 
-        Strategy:
-          1. Collect every (pet, task) pair from the owner.
-          2. Split into windowed tasks (hard time constraints) and flexible tasks.
-          3. Sort both groups by priority descending.
-          4. Slot windowed tasks first at their window_start; fill remaining
-             slots with flexible tasks back-to-back within available hours.
-          5. Skip any task that won't fit in remaining time and flag it.
+        Assumptions (all tasks always have these):
+          - window_start / window_end  : hard time bounds for the task
+          - duration                   : how long the task takes (minutes)
+          - priority                   : 1 (low) – 5 (high)
+          - complete                   : skip already-done tasks
 
-        Returns list of (task, pet, start_time, reason) sorted by start_time.
+        Strategy:
+          1. Drop completed tasks.
+          2. Sort remaining by window_start, break ties by priority (high first).
+          3. Walk through tasks in order. Place each task at window_start if
+             the slot is free; otherwise push it to the earliest free minute
+             still inside the window. If it no longer fits, mark as SKIPPED.
+          4. Return list of (task, pet, start_time, reason) sorted by start_time,
+             with SKIPPED entries (start_time=None) at the end.
         """
         all_tasks = self.owner.get_todays_tasks()
         if not all_tasks:
             return []
 
-        print("Todays tasks:")
-        for pet,task in all_tasks:
-            print("Pet: ", pet.name)
-            print("Task:", task.task_type)
-            print()
+        # 1. Drop completed tasks
+        pending = [
+            (pet, task) for pet, task in all_tasks if not task.complete
+        ]
+
+        # 2. Sort by window_start, then priority descending
+        pending.sort(key=lambda x: (x[1].window_start, -x[1].priority))
+
+        scheduled: list[tuple[Task, Pet, time, str]] = []
+        skipped:   list[tuple[Task, Pet, time, str]] = []
+
+        # Track occupied intervals as (start_dt, end_dt)
+        occupied: list[tuple[datetime, datetime]] = []
+        today = datetime.today()
+
+        def to_dt(t: time) -> datetime:
+            return datetime.combine(today, t)
+
+        def first_free_slot(earliest: datetime, duration_min: int, deadline: datetime) -> datetime | None:
+            """Return the earliest start >= earliest where [start, start+duration) is free."""
+            cursor = earliest
+            task_len = timedelta(minutes=duration_min)
+            while cursor + task_len <= deadline:
+                end = cursor + task_len
+                conflict = next(
+                    (s for s, e in occupied if s < end and e > cursor), None
+                )
+                if conflict is None:
+                    return cursor
+                # Jump past the conflicting block
+                cursor = next(e for s, e in occupied if s < end and e > cursor)
+            return None  # doesn't fit
+
+        # 3. Schedule each task
+        for pet, task in pending:
+            window_s = to_dt(task.window_start)
+            window_e = to_dt(task.window_end)
+
+            slot = first_free_slot(window_s, task.duration, window_e)
+    
+            if slot is None:
+                reason = (
+                    f"SKIPPED — could not fit {task.duration}min inside "
+                    f"{task.window_start.strftime('%H:%M')}–{task.window_end.strftime('%H:%M')}"
+                )
+                skipped.append((task, pet, None, reason))
+                continue
+
+            slot_end = slot + timedelta(minutes=task.duration)
+            occupied.append((slot, slot_end))
+            occupied.sort()  # keep sorted for the conflict check
+
+            reason = (
+                f"priority {task.priority} | "
+                f"window {task.window_start.strftime('%H:%M')}–{task.window_end.strftime('%H:%M')}"
+            )
+            scheduled.append((task, pet, slot.time(), reason))
+
+        # 4. Sort scheduled by start time, append skipped at end
+        scheduled.sort(key=lambda x: x[2])
+        return scheduled + skipped
+
+    def display_schedule(self) -> None:
+        """Print the generated schedule in a readable format."""
+        schedule = self.generate_schedule()
+        if not schedule:
+            print("No tasks scheduled.")
+            return
+
+        print(f"\n{'='*55}")
+        print(f"  Daily Schedule for {self.owner.name}")
+        print(f"{'='*55}")
+        for task, pet, start, reason in schedule:
+            if start:
+                end_dt = datetime.combine(datetime.today(), start) + timedelta(minutes=task.duration)
+                time_str = f"{start.strftime('%H:%M')}–{end_dt.time().strftime('%H:%M')}"
+            else:
+                time_str = "SKIPPED"
+            print(f"  {time_str:15}  {task.task_type:20} ({pet.name})")
+            print(f"  {'':15}  ↳ {reason}")
+        print(f"{'='*55}\n")

@@ -3,9 +3,8 @@ from pawpal_system import Task, Pet, Owner, Scheduler
 
 # --- Owner setup ---
 owner = Owner(
-    name="Jordan",
-    available_start=time(7, 0),   # 7:00 AM
-    available_end=time(20, 0),     # 8:00 PM
+    name="Jordan"
+    
 )
 
 # --- Pets ---
@@ -22,7 +21,7 @@ buddy.add_task(Task(
 ))
 buddy.add_task(Task(
     task_type="Breakfast",
-    duration=10, 
+    duration=60, 
     priority=4,
     window_start =time(7, 0), # 8-9am
     window_end=time(8, 0)
@@ -68,3 +67,4 @@ owner.add_pet(mochi)
 # --- Generate and display schedule ---
 scheduler = Scheduler(owner)
 scheduler.generate_schedule()
+scheduler.display_schedule()
