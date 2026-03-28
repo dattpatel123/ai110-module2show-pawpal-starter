@@ -16,23 +16,19 @@ buddy.add_task(Task(
     task_type="Morning Walk",
     duration=30,
     priority=5,
-    window_start=time(7, 0), # 7-8am
-    window_end=time(8, 0)
+    scheduled_time=time(7, 0),
 ))
 buddy.add_task(Task(
     task_type="Breakfast",
-    duration=60, 
+    duration=60,
     priority=4,
-    window_start =time(7, 0), # 8-9am
-    window_end=time(8, 0)
-
+    scheduled_time=time(8, 0),
 ))
 buddy.add_task(Task(
     task_type="Grooming",
     duration=20,
     priority=2,
-    window_start=time(10, 0), # 10-11am
-    window_end=time(11, 0)
+    scheduled_time=time(10, 0),
 ))
 
 # --- Tasks for Mochi (cat) ---
@@ -40,24 +36,26 @@ mochi.add_task(Task(
     task_type="Breakfast",
     duration=5,
     priority=4,
-    window_start=time(8, 0),
-    window_end=time(9, 0)
-
+    scheduled_time=time(8, 0),
 ))
 mochi.add_task(Task(
     task_type="Litter Box Clean",
     duration=10,
     priority=3,
-    window_start=time(9, 0),
-    window_end=time(10, 0)
-
+    scheduled_time=time(9, 0),
 ))
 mochi.add_task(Task(
     task_type="Playtime",
     duration=15,
     priority=2,
-    window_start=time(11, 0),
-    window_end=time(12, 0)
+    scheduled_time=time(11, 0),
+))
+
+mochi.add_task(Task(
+    task_type="Conflict with playtime",
+    duration=15,
+    priority=2,
+    scheduled_time=time(11, 0),
 ))
 
 # --- Register pets with owner ---
@@ -66,5 +64,5 @@ owner.add_pet(mochi)
 
 # --- Generate and display schedule ---
 scheduler = Scheduler(owner)
-scheduler.generate_schedule()
-scheduler.display_schedule()
+for task, pet, task.scheduled_time, reason in scheduler.generate_schedule():
+    print(f"{task.scheduled_time.strftime('%H:%M')}: {task.task_type} for {pet.name} (Reason: {reason})")

@@ -8,9 +8,12 @@ class Task:
     task_type: str
     duration: int           # in minutes
     priority: int           # 1 (low) to 5 (high)
+    scheduled_time: time = None
+    recurrence: str = None          # "daily", "weekly", "monthly", or None (one-time)
+    complete: bool = False
+    last_completed: datetime = None  # tracks when recurring tasks were last done
     window_start: time = None
     window_end: time = None
-    complete: bool = False
 
     def update(self, field_name: str, value) -> None:
         """Update a task attribute by name."""
@@ -19,15 +22,32 @@ class Task:
         setattr(self, field_name, value)
 
     def set_complete(self, complete: bool = True) -> None:
-        """Mark this task as complete or incomplete."""
-        
-        self.complete = True
+        """Mark this task as complete. For recurring tasks, records the completion date."""
+        self.complete = complete
+        if complete and self.recurrence:
+            self.last_completed = datetime.now()
+
+    def is_due_today(self) -> bool:
+        """Return True if this task is due today based on recurrence and last completion."""
+        today = datetime.today().date()
+        if self.recurrence is None:
+            return not self.complete
+        if self.last_completed is None:
+            return True
+        last = self.last_completed.date()
+        if self.recurrence == "daily":
+            return today >= last + timedelta(days=1)
+        if self.recurrence == "weekly":
+            return today >= last + timedelta(weeks=1)
+        if self.recurrence == "monthly":
+            return today >= last + timedelta(days=30)
+        return True
 
 @dataclass
 class Pet:
     name: str
-    age: int
     species: str
+    age: Optional[int] = None
     tasks: list[Task] = field(default_factory=list)
 
     def update_info(self, name: str = None, age: int = None, species: str = None) -> None:
@@ -57,6 +77,12 @@ class Owner:
         # Supported keys: "max_consecutive_minutes" (int)
         self.preferences: dict = preferences or {}
 
+    def get_pet_by_name(self, name: str) -> Optional[Pet]:
+        """Return a pet by name, or None if not found."""
+        for pet in self.pets:
+            if pet.name == name:
+                return pet
+        return None
     def add_pet(self, pet: Pet) -> None:
         """Add a pet to the owner's roster."""
         if pet in self.pets:
@@ -83,7 +109,11 @@ class Owner:
 
     def get_todays_tasks(self) -> list[tuple[Pet, Task]]:
         """Return all (pet, task) pairs across every registered pet."""
-        return [(pet, task) for pet in self.pets for task in pet.tasks]
+        all_tasks = [(pet, task) for pet in self.pets for task in pet.tasks]
+        if not all_tasks:
+            return []
+
+        return  [(pet, task) for pet, task in all_tasks if task.is_due_today()]
 
    
 
@@ -91,93 +121,46 @@ class Owner:
 class Scheduler:
     def __init__(self, owner: Owner):
         self.owner = owner
-
     def generate_schedule(self) -> list[tuple[Task, Pet, time, str]]:
-        """
-        Build a daily schedule for the owner's pets.
-
-        Assumptions (all tasks always have these):
-          - window_start / window_end  : hard time bounds for the task
-          - duration                   : how long the task takes (minutes)
-          - priority                   : 1 (low) – 5 (high)
-          - complete                   : skip already-done tasks
-
-        Strategy:
-          1. Drop completed tasks.
-          2. Sort remaining by window_start, break ties by priority (high first).
-          3. Walk through tasks in order. Place each task at window_start if
-             the slot is free; otherwise push it to the earliest free minute
-             still inside the window. If it no longer fits, mark as SKIPPED.
-          4. Return list of (task, pet, start_time, reason) sorted by start_time,
-             with SKIPPED entries (start_time=None) at the end.
-        """
+        """Build a daily schedule using each task's scheduled_time, sorted by time then priority."""
         all_tasks = self.owner.get_todays_tasks()
         if not all_tasks:
             return []
 
-        # 1. Drop completed tasks
-        pending = [
-            (pet, task) for pet, task in all_tasks if not task.complete
-        ]
+        pending = [(pet, task) for pet, task in all_tasks if task.is_due_today()]
 
-        # 2. Sort by window_start, then priority descending
-        pending.sort(key=lambda x: (x[1].window_start, -x[1].priority))
+        # Sort by scheduled_time (None last), then priority descending
+        pending.sort(key=lambda x: (x[1].scheduled_time is None, x[1].scheduled_time, -x[1].priority))
 
-        scheduled: list[tuple[Task, Pet, time, str]] = []
-        skipped:   list[tuple[Task, Pet, time, str]] = []
-
-        # Track occupied intervals as (start_dt, end_dt)
-        occupied: list[tuple[datetime, datetime]] = []
-        today = datetime.today()
-
-        def to_dt(t: time) -> datetime:
-            return datetime.combine(today, t)
-
-        def first_free_slot(earliest: datetime, duration_min: int, deadline: datetime) -> datetime | None:
-            """Return the earliest start >= earliest where [start, start+duration) is free."""
-            cursor = earliest
-            task_len = timedelta(minutes=duration_min)
-            while cursor + task_len <= deadline:
-                end = cursor + task_len
-                conflict = next(
-                    (s for s, e in occupied if s < end and e > cursor), None
-                )
-                if conflict is None:
-                    return cursor
-                # Jump past the conflicting block
-                cursor = next(e for s, e in occupied if s < end and e > cursor)
-            return None  # doesn't fit
-
-        # 3. Schedule each task
+        # Lightweight conflict detection: flag tasks that share the same scheduled_time
+        seen_times = {}  # scheduled_time -> first task that claimed it
+        results = []
         for pet, task in pending:
-            window_s = to_dt(task.window_start)
-            window_e = to_dt(task.window_end)
-
-            slot = first_free_slot(window_s, task.duration, window_e)
-    
-            if slot is None:
-                reason = (
-                    f"SKIPPED — could not fit {task.duration}min inside "
-                    f"{task.window_start.strftime('%H:%M')}–{task.window_end.strftime('%H:%M')}"
-                )
-                skipped.append((task, pet, None, reason))
-                continue
-
-            slot_end = slot + timedelta(minutes=task.duration)
-            occupied.append((slot, slot_end))
-            occupied.sort()  # keep sorted for the conflict check
-
-            reason = (
-                f"priority {task.priority} | "
-                f"window {task.window_start.strftime('%H:%M')}–{task.window_end.strftime('%H:%M')}"
-            )
-            scheduled.append((task, pet, slot.time(), reason))
-
-        # 4. Sort scheduled by start time, append skipped at end
-        scheduled.sort(key=lambda x: x[2])
-        return scheduled + skipped
-
-    def display_schedule(self) -> None:
+            reason = f"priority {task.priority}"
+            if task.scheduled_time is not None:
+                if task.scheduled_time in seen_times:
+                    reason += f" ⚠️ conflict with '{seen_times[task.scheduled_time]}'"
+                else:
+                    seen_times[task.scheduled_time] = task.task_type
+            results.append((task, pet, task.scheduled_time, reason))
+        return results
+    def filter_by_completion(self, complete: bool) -> list[tuple[Pet, Task]]:
+        """Return all (pet, task) pairs filtered by completion status."""
+        return [
+            (pet, task)
+            for pet in self.owner.pets
+            for task in pet.tasks
+            if task.complete == complete
+        ]
+    def filter_by_pet(self, pet_name: str) -> list[tuple[Pet, Task]]:
+        """Return all (pet, task) pairs for a given pet name."""
+        return [
+            (pet, task)
+            for pet in self.owner.pets
+            if pet.name == pet_name
+            for task in pet.tasks
+        ]
+    def print_schedule(self):
         """Print the generated schedule in a readable format."""
         schedule = self.generate_schedule()
         if not schedule:
@@ -188,11 +171,7 @@ class Scheduler:
         print(f"  Daily Schedule for {self.owner.name}")
         print(f"{'='*55}")
         for task, pet, start, reason in schedule:
-            if start:
-                end_dt = datetime.combine(datetime.today(), start) + timedelta(minutes=task.duration)
-                time_str = f"{start.strftime('%H:%M')}–{end_dt.time().strftime('%H:%M')}"
-            else:
-                time_str = "SKIPPED"
+            time_str = start.strftime('%H:%M') if start else "No time"
             print(f"  {time_str:15}  {task.task_type:20} ({pet.name})")
             print(f"  {'':15}  ↳ {reason}")
         print(f"{'='*55}\n")
