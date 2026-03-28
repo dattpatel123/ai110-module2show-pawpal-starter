@@ -88,10 +88,12 @@
 
 - What part of this project are you most satisfied with?
 - The basic functionality I'm proud that I was able to solve. I was able to add tasks, create pets, and generate schedules. However, I do feel the project could be improved greatly but there was a lot of open ended choices to make which made it difficult to decide about how to go about it.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 - I would definitely consider working on the recurring tasks and making sure that works. I would also make it so that it doesn't have to schedule at the exact start time. We could give it a window of time we want to schedule and it would schedule as many tasks together as possible.
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
