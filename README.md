@@ -41,3 +41,21 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
+
+### Features
+
+- **Task Scheduling** — generates a daily schedule sorted by scheduled time, with ties broken by priority (high first)
+- **Recurring Tasks** — tasks can repeat on a daily, weekly, or monthly cadence; completion is tracked per-cycle so recurring tasks automatically reset when due again
+- **Conflict Detection** — flags tasks assigned to the same time slot with a warning instead of silently dropping them
+- **Mark Complete** — tasks can be marked done (or undone) directly from the UI; one-time tasks are hidden once complete
+- **Multi-Pet Support** — an owner can register multiple pets, each with their own independent task list
+- **Per-Pet Filtering** — schedule can be filtered by pet name or completion status
+- **Unique Task Validation** — prevents adding duplicate task titles to the same pet
+- **Owner & Pet Management** — create an owner, add/remove pets, and assign tasks through the Streamlit UI
+
+### Diagram
+![UML Diagram](uml_final.png)
+
+### Demo
+![Screenshot](images/img1.png)
+![Screenshot](images/img2.png)
