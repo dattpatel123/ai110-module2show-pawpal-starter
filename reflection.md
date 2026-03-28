@@ -87,7 +87,7 @@
 **a. What went well**
 
 - What part of this project are you most satisfied with?
-- The basic functionality I'm proud that I was able to solve. I was able to add tasks, create pets, and generate schedules. 
+- The basic functionality I'm proud that I was able to solve. I was able to add tasks, create pets, and generate schedules. However, I do feel the project could be improved greatly but there was a lot of open ended choices to make which made it difficult to decide about how to go about it.
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?

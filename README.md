@@ -53,8 +53,6 @@ pip install -r requirements.txt
 - **Unique Task Validation** — prevents adding duplicate task titles to the same pet
 - **Owner & Pet Management** — create an owner, add/remove pets, and assign tasks through the Streamlit UI
 
-### Diagram
-![UML Diagram](uml_final.png)
 
 ### Demo
 ![Screenshot](images/img1.png)
